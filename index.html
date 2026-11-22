@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enemy Clash</title>
+<meta name="description" content="Enemy Clash : un jeu de bagarre en arène sur iPhone et iPad. 3 modes, 9 héros, des skins à gagner. 100 % gratuit, sans achats.">
+<link rel="icon" href="icon.png">
+<style>
+  :root { --bg: #1d1838; --card: #2a2450; --text: #f2f0ff; --dim: #c9c6ff; --accent: #ffcc26; --blue: #7fe0ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 40px 16px 64px; }
+  header { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  header img { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  h1 { color: var(--accent); font-size: 2.6rem; margin: 0; line-height: 1.1; }
+  .tag { color: var(--dim); margin: 4px 0 0; }
+  .badge { display: inline-block; margin-top: 10px; background: var(--accent); color: var(--bg); font-weight: 800; border-radius: 999px; padding: 6px 16px; }
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 32px 0; }
+  .shots img { width: 100%; border-radius: 14px; display: block; }
+  .card { background: var(--card); border-radius: 16px; padding: 8px 24px 20px; margin-top: 20px; }
+  h2 { color: var(--accent); font-size: 1.25rem; }
+  a { color: var(--blue); }
+  footer { margin-top: 40px; color: var(--dim); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon.png" alt="Icône d'Enemy Clash">
+    <div>
+      <h1>Enemy Clash</h1>
+      <p class="tag">Le jeu de baston en arène, sur iPhone et iPad.</p>
+      <span class="badge">100 % gratuit · sans achats</span>
+    </div>
+  </header>
+
+  <div class="shots">
+    <img src="shot_carnage.jpg" alt="Une partie de Carnage">
+    <img src="shot_cantine.jpg" alt="Le mode La Cantine">
+    <img src="shot_skins.jpg" alt="Les skins des héros">
+  </div>
+
+  <div class="card">
+    <h2>Le jeu</h2>
+    <ul>
+      <li><strong>Carnage</strong> : 10 joueurs, chacun pour soi, le plus de kills en 3 minutes.</li>
+      <li><strong>Braquage</strong> : 3 contre 3, détruis le coffre-fort de l'équipe adverse.</li>
+      <li><strong>La Cantine</strong> : cache-toi des zombies… ou deviens l'un d'eux.</li>
+      <li>9 héros à débloquer et à améliorer, des dizaines de skins, des coffres et des quêtes quotidiennes.</li>
+      <li>Aucun achat avec de l'argent réel : tout se gagne en jouant, ou en regardant une vidéo si tu le choisis.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Aide et contact</h2>
+    <p>Une question, un bug, une idée ? <a href="https://github.com/yestask-app/enemyclash-privacy/issues">Écris-nous ici</a>.</p>
+    <p>Pour effacer ta progression : supprime l'application (tout est enregistré uniquement sur ton appareil).</p>
+    <p><a href="https://yestask-app.github.io/enemyclash-privacy/">Règles de confidentialité</a></p>
+  </div>
+
+  <footer>© 2026 Enemy Clash</footer>
+</main>
+</body>
+</html>
