@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Enemy Clash Admin</title>
+<link rel="icon" href="../icon.png">
+<style>
+  :root { --bg: #1d1838; --card: #2a2450; --card2: #352d63; --text: #f2f0ff; --dim: #c9c6ff; --accent: #ffcc26; --green: #5fd66a; --red: #ff6b66; --blue: #7fe0ff; --pink: #ff9de0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  header img { width: 56px; height: 56px; border-radius: 14px; }
+  h1 { color: var(--accent); margin: 0; font-size: 1.8rem; flex: 1; }
+  h2 { color: var(--accent); margin: 0 0 12px; font-size: 1.25rem; }
+  .card { background: var(--card); border-radius: 16px; padding: 18px 20px; margin-bottom: 18px; }
+  label { display: block; font-weight: 700; margin: 12px 0 6px; }
+  .hint { color: var(--dim); font-weight: 400; font-size: .88rem; }
+  input, textarea, select { width: 100%; padding: 11px 13px; font: inherit; border-radius: 10px; border: 2px solid #4b4384; background: #15122b; color: var(--text); }
+  textarea { min-height: 70px; resize: vertical; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .row2 { grid-template-columns: 1fr; } }
+  button { font: inherit; font-weight: 700; border: 0; border-radius: 10px; padding: 11px 16px; cursor: pointer; background: var(--card2); color: var(--text); }
+  button.main { background: var(--accent); color: #1d1838; width: 100%; padding: 14px; font-size: 1.1rem; margin-top: 16px; }
+  button.green { background: var(--green); color: #102010; }
+  button.red { background: var(--red); color: #200; }
+  button.small { padding: 7px 11px; font-size: .88rem; }
+  .codeline { display: flex; gap: 10px; }
+  .codeline input { text-transform: uppercase; font-family: ui-monospace, Menlo, monospace; letter-spacing: 1px; }
+  .msg { min-height: 1.4em; margin-top: 10px; font-weight: 700; }
+  .ok { color: var(--green); } .err { color: var(--red); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat { background: var(--card2); border-radius: 12px; padding: 12px; text-align: center; }
+  .stat b { display: block; font-size: 1.7rem; color: var(--accent); }
+  .code { background: var(--card2); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+  .code .name { font-family: ui-monospace, Menlo, monospace; font-size: 1.15rem; font-weight: 800; color: var(--accent); }
+  .code.off { opacity: .55; }
+  .code .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .bar { height: 8px; background: #15122b; border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; background: var(--green); }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; background: #15122b; font-size: .85rem; margin-right: 4px; }
+  .radio { display: flex; gap: 8px; flex-wrap: wrap; }
+  .radio label { margin: 0; font-weight: 600; background: var(--card2); padding: 9px 14px; border-radius: 10px; cursor: pointer; }
+  .radio input { width: auto; margin-right: 6px; }
+  .empty { color: var(--dim); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="../icon.png" alt="">
+    <h1>Enemy Clash · Admin</h1>
+    <button id="logout" class="small" hidden>Se déconnecter</button>
+  </header>
+
+  <!-- Connexion -->
+  <section class="card" id="login">
+    <h2>Connexion</h2>
+    <label for="email">E-mail</label>
+    <input id="email" type="email" autocomplete="username">
+    <label for="password">Mot de passe</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <button class="main" id="signin">Se connecter</button>
+    <p class="hint" style="margin-top:14px">Première fois ? <a href="#" id="signupLink" style="color:var(--blue)">Crée ton compte administrateur</a> (tu recevras un e-mail de confirmation).</p>
+    <div class="msg" id="loginMsg"></div>
+  </section>
+
+  <section class="card" id="notAdmin" hidden>
+    <h2>Compte pas encore administrateur</h2>
+    <p>Tu es connecté avec <b id="whoami"></b>, mais ce compte n'a pas encore les droits d'administration. Demande à Claude de l'activer.</p>
+  </section>
+
+  <div id="app" hidden>
+    <section class="card">
+      <h2>Le jeu en chiffres</h2>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="card">
+      <h2 id="formTitle">Créer un code cadeau</h2>
+      <label for="code">Le code <span class="hint">(ce que les joueurs tapent, 3 à 24 lettres ou chiffres, ex : LANCEMENT)</span></label>
+      <div class="codeline"><input id="code" maxlength="24" placeholder="LANCEMENT"><button id="random" type="button">Au hasard</button></div>
+
+      <label>Le cadeau <span class="hint">(mets 0 pour ce que tu ne donnes pas)</span></label>
+      <div class="grid">
+        <div><span class="hint">💎 Gemmes</span><input id="gems" type="number" min="0" value="1000"></div>
+        <div><span class="hint">🪙 Pièces</span><input id="coins" type="number" min="0" value="0"></div>
+        <div><span class="hint">⚡ Énergie</span><input id="energy" type="number" min="0" value="0"></div>
+        <div><span class="hint">🎁 Méga coffres (max 10)</span><input id="chests" type="number" min="0" max="10" value="0"></div>
+      </div>
+
+      <label for="message">Ton message <span class="hint">(affiché au joueur quand il utilise le code)</span></label>
+      <textarea id="message" maxlength="300" placeholder="Merci d'être là pour le lancement ! 🎉"></textarea>
+
+      <div class="row2">
+        <div>
+          <label>Combien de joueurs peuvent l'utiliser ?</label>
+          <div class="radio">
+            <label><input type="radio" name="limit" value="none" checked>Tout le monde</label>
+            <label><input type="radio" name="limit" value="max">Les</label>
+          </div>
+          <input id="maxUses" type="number" min="1" value="50" style="margin-top:8px" disabled>
+          <span class="hint">premiers seulement. Chaque joueur ne peut l'utiliser qu'une fois.</span>
+        </div>
+        <div>
+          <label for="expires">Valable jusqu'au <span class="hint">(vide = pour toujours)</span></label>
+          <input id="expires" type="datetime-local">
+          <label for="note">Note pour toi <span class="hint">(les joueurs ne la voient pas)</span></label>
+          <input id="note" maxlength="100" placeholder="Post Insta du lancement">
+        </div>
+      </div>
+      <button class="main" id="save">CRÉER LE CODE</button>
+      <div class="msg" id="saveMsg"></div>
+    </section>
+
+    <section class="card">
+      <h2>Mes codes</h2>
+      <div id="codes"></div>
+    </section>
+
+    <section class="card">
+      <h2>Pseudos signalés</h2>
+      <p class="hint" style="margin-top:-6px">Quand des joueurs signalent un pseudo, il apparaît ici. « Changer le pseudo » le remplace par JoueurXXXX.</p>
+      <div id="reports"></div>
+    </section>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = "https://depgicxppqxsnagttmeg.supabase.co";
+const SUPABASE_KEY = "sb_publishable_3FRmi2d2GRsf-4ArO-SN9Q_0nfe1D02";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = n => Number(n).toLocaleString("fr-FR");
+
+function say(el, text, ok) { el.textContent = text; el.className = "msg " + (ok ? "ok" : "err"); }
+
+// ---------------- Connexion
+$("signin").onclick = async () => {
+  const { error } = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("password").value });
+  if (error) say($("loginMsg"), error.message === "Invalid login credentials" ? "E-mail ou mot de passe incorrect." : error.message.includes("confirm") ? "Confirme d'abord ton e-mail (regarde ta boîte mail)." : error.message, false);
+  else start();
+};
+$("password").addEventListener("keydown", e => { if (e.key === "Enter") $("signin").click(); });
+$("signupLink").onclick = async e => {
+  e.preventDefault();
+  const email = $("email").value.trim(), password = $("password").value;
+  if (!email || password.length < 8) { say($("loginMsg"), "Tape ton e-mail et un mot de passe d'au moins 8 caractères, puis reclique.", false); return; }
+  const { error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.href } });
+  if (error) say($("loginMsg"), error.message, false);
+  else say($("loginMsg"), "Compte créé ! Clique sur le lien dans l'e-mail de confirmation, puis reviens te connecter.", true);
+};
+$("logout").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+async function start() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session || session.user.is_anonymous) { $("login").hidden = false; return; }
+  $("login").hidden = true; $("logout").hidden = false;
+  const { data: admin } = await sb.rpc("is_admin");
+  if (!admin) { $("whoami").textContent = session.user.email; $("notAdmin").hidden = false; return; }
+  $("app").hidden = false;
+  refresh();
+}
+
+async function refresh() { loadStats(); loadCodes(); loadReports(); }
+
+// ---------------- Chiffres
+async function loadStats() {
+  const { data } = await sb.rpc("admin_stats");
+  if (!data) return;
+  $("stats").innerHTML = [["Joueurs", data.players], ["Actifs aujourd'hui", data.active_today], ["Amitiés", data.friendships], ["Signalements", data.reports]]
+    .map(([t, v]) => `<div class="stat"><b>${fmt(v)}</b>${t}</div>`).join("");
+}
+
+// ---------------- Codes
+document.querySelectorAll("input[name=limit]").forEach(r => r.onchange = () => $("maxUses").disabled = document.querySelector("input[name=limit]:checked").value !== "max");
+$("random").onclick = () => {
+  const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", b = new Uint32Array(8); crypto.getRandomValues(b);
+  $("code").value = [...b].map(x => A[x % A.length]).join("");
+};
+
+$("save").onclick = async () => {
+  const code = $("code").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length < 3) { say($("saveMsg"), "Choisis un code d'au moins 3 lettres ou chiffres.", false); return; }
+  const num = id => Math.max(0, Math.round(+$(id).value || 0));
+  const gift = { gems: num("gems"), coins: num("coins"), energy: num("energy"), chests: Math.min(10, num("chests")) };
+  if (!gift.gems && !gift.coins && !gift.energy && !gift.chests) { say($("saveMsg"), "Mets au moins un cadeau !", false); return; }
+  const limited = document.querySelector("input[name=limit]:checked").value === "max";
+  const max = limited ? Math.max(1, num("maxUses")) : null;
+  const expires = $("expires").value ? new Date($("expires").value).toISOString() : null;
+  const { data, error } = await sb.rpc("admin_save_code", {
+    p_code: code, p_coins: gift.coins, p_gems: gift.gems, p_energy: gift.energy, p_chests: gift.chests,
+    p_message: $("message").value.trim(), p_max_uses: max, p_expires_at: expires, p_note: $("note").value.trim()
+  });
+  if (error || data !== "ok") { say($("saveMsg"), "Erreur : " + (error ? error.message : data), false); return; }
+  say($("saveMsg"), `Code ${code} prêt ! Partage-le où tu veux.`, true);
+  $("formTitle").textContent = "Créer un code cadeau"; $("save").textContent = "CRÉER LE CODE";
+  loadCodes();
+};
+
+function giftText(c) {
+  const parts = [];
+  if (c.gems) parts.push(`💎 ${fmt(c.gems)}`);
+  if (c.coins) parts.push(`🪙 ${fmt(c.coins)}`);
+  if (c.energy) parts.push(`⚡ ${fmt(c.energy)}`);
+  if (c.chests) parts.push(`🎁 ${c.chests} méga coffre${c.chests > 1 ? "s" : ""}`);
+  return parts.map(p => `<span class="pill">${p}</span>`).join("");
+}
+
+let codes = [];
+async function loadCodes() {
+  const { data, error } = await sb.rpc("admin_list_codes");
+  if (error) { $("codes").innerHTML = `<p class="err">${esc(error.message)}</p>`; return; }
+  codes = data || [];
+  if (!codes.length) { $("codes").innerHTML = '<p class="empty">Aucun code pour l\'instant. Crée le premier au-dessus !</p>'; return; }
+  const now = new Date();
+  $("codes").innerHTML = codes.map((c, i) => {
+    const expired = c.expires_at && new Date(c.expires_at) < now;
+    const full = c.max_uses != null && c.uses >= c.max_uses;
+    const state = !c.active ? "désactivé" : expired ? "expiré" : full ? "épuisé" : "actif";
+    const pct = c.max_uses ? Math.min(100, Math.round(c.uses / c.max_uses * 100)) : 0;
+    return `<div class="code ${state !== "actif" ? "off" : ""}">
+      <div>
+        <div class="name">${esc(c.code)} <span class="pill" style="font-family:inherit">${state}</span></div>
+        <div>${giftText(c)}</div>
+        <div class="hint">Utilisé par <b style="color:var(--text)">${fmt(c.uses)}</b>${c.max_uses != null ? ` / ${fmt(c.max_uses)}` : ""} joueur${c.uses > 1 ? "s" : ""}
+          · ${c.expires_at ? "jusqu'au " + new Date(c.expires_at).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "pour toujours"}
+          ${c.note ? " · " + esc(c.note) : ""}</div>
+        ${c.message ? `<div class="hint">« ${esc(c.message)} »</div>` : ""}
+        ${c.max_uses ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}
+      </div>
+      <div class="acts">
+        <button class="small green" data-a="copy" data-i="${i}">Copier</button>
+        <button class="small" data-a="edit" data-i="${i}">Modifier</button>
+        <button class="small" data-a="toggle" data-i="${i}">${c.active ? "Désactiver" : "Réactiver"}</button>
+        <button class="small red" data-a="delete" data-i="${i}">Supprimer</button>
+      </div>
+    </div>`;
+  }).join("");
+  $("codes").querySelectorAll("button").forEach(b => b.onclick = () => codeAction(b.dataset.a, codes[+b.dataset.i], b));
+}
+
+async function codeAction(action, c, btn) {
+  if (action === "copy") {
+    try { await navigator.clipboard.writeText(c.code); btn.textContent = "Copié !"; } catch { prompt("Copie ce code :", c.code); }
+  } else if (action === "edit") {
+    $("code").value = c.code; $("gems").value = c.gems; $("coins").value = c.coins; $("energy").value = c.energy; $("chests").value = c.chests;
+    $("message").value = c.message; $("note").value = c.note;
+    document.querySelector(`input[name=limit][value=${c.max_uses != null ? "max" : "none"}]`).checked = true;
+    $("maxUses").disabled = c.max_uses == null; if (c.max_uses != null) $("maxUses").value = c.max_uses;
+    if (c.expires_at) { const d = new Date(c.expires_at); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); $("expires").value = d.toISOString().slice(0, 16); } else $("expires").value = "";
+    $("formTitle").textContent = `Modifier le code ${c.code}`; $("save").textContent = "ENREGISTRER";
+    window.scrollTo({ top: $("formTitle").offsetTop - 20, behavior: "smooth" });
+  } else if (action === "toggle") {
+    await sb.rpc("admin_set_code_active", { p_code: c.code, p_active: !c.active }); loadCodes();
+  } else if (action === "delete") {
+    if (!confirm(`Supprimer définitivement le code ${c.code} ? Les joueurs ne pourront plus l'utiliser.`)) return;
+    await sb.rpc("admin_delete_code", { p_code: c.code }); loadCodes();
+  }
+}
+
+// ---------------- Signalements
+async function loadReports() {
+  const { data } = await sb.rpc("admin_list_reports");
+  if (!data || !data.length) { $("reports").innerHTML = '<p class="empty">Aucun signalement en attente. 👍</p>'; return; }
+  $("reports").innerHTML = data.map((r, i) => `<div class="code">
+      <div><div class="name">${esc(r.current_name || r.target_name)}</div>
+      <div class="hint">${r.reports} signalement${r.reports > 1 ? "s" : ""} · ${new Date(r.last_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}${r.reasons ? " · " + esc(r.reasons) : ""}</div></div>
+      <div class="acts"><button class="small red" data-a="reset" data-i="${i}">Changer le pseudo</button><button class="small" data-a="dismiss" data-i="${i}">Pseudo correct</button></div>
+    </div>`).join("");
+  $("reports").querySelectorAll("button").forEach(b => b.onclick = async () => {
+    const r = data[+b.dataset.i];
+    if (b.dataset.a === "reset") await sb.rpc("admin_reset_name", { p_target: r.target });
+    else await sb.rpc("admin_dismiss_reports", { p_target: r.target });
+    loadReports(); loadStats();
+  });
+}
+
+start();
+</script>
+</body>
+</html>

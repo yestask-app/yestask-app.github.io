@@ -1,0 +1,13 @@
+# Garde le serveur du jeu éveillé (un projet Supabase gratuit s'endort après 7 jours sans visite).
+name: keepalive
+on:
+  schedule:
+    - cron: "17 6 */2 * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsS -X POST "https://depgicxppqxsnagttmeg.supabase.co/rest/v1/rpc/ping" \
+            -H "apikey: sb_publishable_3FRmi2d2GRsf-4ArO-SN9Q_0nfe1D02" -H "Content-Type: application/json" -d '{}'
