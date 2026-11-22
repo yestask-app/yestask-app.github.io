@@ -47,6 +47,10 @@
   .radio label { margin: 0; font-weight: 600; background: var(--card2); padding: 9px 14px; border-radius: 10px; cursor: pointer; }
   .radio input { width: auto; margin-right: 6px; }
   .empty { color: var(--dim); }
+  .player { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; background: var(--card2); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; }
+  .player .pname { font-weight: 800; font-size: 1.1rem; }
+  .online { color: var(--green); font-weight: 700; }
+  @media (max-width: 640px) { .player { grid-template-columns: 1fr; } }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -124,6 +128,13 @@
     </section>
 
     <section class="card">
+      <h2>Joueurs <span class="hint" id="playersCount"></span></h2>
+      <div class="codeline"><input id="playerSearch" placeholder="Chercher un pseudo… (vide = les derniers connectés)"><button id="playerGo" class="green">Chercher</button></div>
+      <div id="players" style="margin-top:12px"></div>
+      <button id="playersMore" class="small" style="margin-top:4px" hidden>Afficher plus</button>
+    </section>
+
+    <section class="card">
       <h2>Pseudos signalés</h2>
       <p class="hint" style="margin-top:-6px">Quand des joueurs signalent un pseudo, il apparaît ici. « Changer le pseudo » le remplace par JoueurXXXX.</p>
       <div id="reports"></div>
@@ -169,7 +180,42 @@ async function start() {
   refresh();
 }
 
-async function refresh() { loadStats(); loadCodes(); loadReports(); }
+async function refresh() { loadStats(); loadCodes(); loadReports(); loadPlayers(); }
+
+// ---------------- Joueurs
+const HEROES = ["Rook", "Nova", "Zip", "Brasa", "Mekka", "Lune", "Pixel", "Bolt", "Cobalt", "Zombie", "Shin", "Zed"];
+let playerLimit = 50;
+function ago(iso) {
+  const m = (Date.now() - new Date(iso)) / 60000;
+  if (m < 10) return '<span class="online">en ligne</span>';
+  if (m < 60) return `il y a ${Math.floor(m)} min`;
+  if (m < 1440) return `il y a ${Math.floor(m / 60)} h`;
+  return `il y a ${Math.floor(m / 1440)} j`;
+}
+async function loadPlayers() {
+  const q = $("playerSearch").value.trim();
+  const { data, error } = await sb.rpc("admin_list_players", { p_query: q, p_limit: playerLimit });
+  if (error) { $("players").innerHTML = `<p class="err">${esc(error.message)}</p>`; return; }
+  const total = data.length ? data[0].total : 0;
+  $("playersCount").textContent = q ? `(${fmt(total)} trouvé${total > 1 ? "s" : ""})` : `(${fmt(total)} au total)`;
+  $("playersMore").hidden = data.length >= total;
+  if (!data.length) { $("players").innerHTML = `<p class="empty">${q ? "Aucun joueur ne contient « " + esc(q) + " »." : "Pas encore de joueur."}</p>`; return; }
+  $("players").innerHTML = data.map((p, i) => `<div class="player">
+      <div><div class="pname">${esc(p.name)}</div>
+      <div class="hint">Niveau ${p.level} · 🏆 ${fmt(p.trophies)} · ${HEROES[p.hero] || "?"} · ${p.friends} ami${p.friends > 1 ? "s" : ""}${p.reports ? ` · <b style="color:var(--red)">${p.reports} signalement${p.reports > 1 ? "s" : ""}</b>` : ""}</div>
+      <div class="hint">Vu ${ago(p.last_seen)} · inscrit le ${new Date(p.created_at).toLocaleDateString("fr-FR")}</div></div>
+      <div class="acts"><button class="small red" data-i="${i}">Changer le pseudo</button></div>
+    </div>`).join("");
+  $("players").querySelectorAll("button").forEach(b => b.onclick = async () => {
+    const p = data[+b.dataset.i];
+    if (!confirm(`Remplacer le pseudo « ${p.name} » par JoueurXXXX ? Le joueur pourra en choisir un autre.`)) return;
+    await sb.rpc("admin_reset_name", { p_target: p.id });
+    loadPlayers(); loadReports();
+  });
+}
+$("playerGo").onclick = () => { playerLimit = 50; loadPlayers(); };
+$("playerSearch").addEventListener("keydown", e => { if (e.key === "Enter") $("playerGo").click(); });
+$("playersMore").onclick = () => { playerLimit += 100; loadPlayers(); };
 
 // ---------------- Chiffres
 async function loadStats() {
