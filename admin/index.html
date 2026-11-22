@@ -47,6 +47,19 @@
   .radio label { margin: 0; font-weight: 600; background: var(--card2); padding: 9px 14px; border-radius: 10px; cursor: pointer; }
   .radio input { width: auto; margin-right: 6px; }
   .empty { color: var(--dim); }
+  h3.sub { color: var(--dim); font-size: 1rem; margin: 20px 0 8px; }
+  .stat small { display: block; color: var(--dim); font-size: .8rem; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; color: var(--dim); margin-bottom: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }
+  .chart { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; align-items: end; height: 170px; padding-top: 18px; }
+  .day { display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+  .bars { display: flex; gap: 2px; align-items: flex-end; height: 100%; width: 100%; justify-content: center; }
+  .bars i { display: block; width: 30%; min-height: 2px; border-radius: 3px 3px 0 0; position: relative; }
+  .day span { font-size: .7rem; color: var(--dim); margin-top: 4px; }
+  .hbar { display: grid; grid-template-columns: 110px 1fr 150px; gap: 8px; align-items: center; margin: 5px 0; font-size: .92rem; }
+  .hbar .track { background: #15122b; border-radius: 6px; height: 14px; overflow: hidden; }
+  .hbar .track i { display: block; height: 100%; background: var(--accent); }
+  .msg.unread { border-left: 4px solid var(--accent); }
   .player { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; background: var(--card2); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; }
   .player .pname { font-weight: 800; font-size: 1.1rem; }
   .online { color: var(--green); font-weight: 700; }
@@ -81,8 +94,21 @@
 
   <div id="app" hidden>
     <section class="card">
-      <h2>Le jeu en chiffres</h2>
+      <h2>Le jeu en chiffres <button id="refreshStats" class="small" style="float:right">Actualiser</button></h2>
       <div class="stats" id="stats"></div>
+      <h3 class="sub">Les 14 derniers jours</h3>
+      <div class="legend"><span><i style="background:var(--blue)"></i>Joueurs actifs</span><span><i style="background:var(--green)"></i>Nouveaux joueurs</span><span><i style="background:var(--accent)"></i>Parties jouées</span></div>
+      <div class="chart" id="chart"></div>
+      <div class="row2">
+        <div><h3 class="sub">Modes joués (7 jours)</h3><div id="modes"></div></div>
+        <div><h3 class="sub">Héros joués (7 jours)</h3><div id="heroes"></div></div>
+      </div>
+      <p class="hint" style="margin-top:14px">« Reviennent le lendemain » = part des nouveaux joueurs qui rejouent le jour suivant (bon signe au-dessus de 30 %). « Reviennent après 7 jours » : bon signe au-dessus de 10 %.</p>
+    </section>
+
+    <section class="card">
+      <h2>Messages des joueurs <span class="hint" id="msgCount"></span></h2>
+      <div id="messages"></div>
     </section>
 
     <section class="card">
@@ -180,7 +206,7 @@ async function start() {
   refresh();
 }
 
-async function refresh() { loadStats(); loadCodes(); loadReports(); loadPlayers(); }
+async function refresh() { loadStats(); loadCodes(); loadReports(); loadPlayers(); loadMessages(); }
 
 // ---------------- Joueurs
 const HEROES = ["Rook", "Nova", "Zip", "Brasa", "Mekka", "Lune", "Pixel", "Bolt", "Cobalt", "Zombie", "Shin", "Zed"];
@@ -218,11 +244,59 @@ $("playerSearch").addEventListener("keydown", e => { if (e.key === "Enter") $("p
 $("playersMore").onclick = () => { playerLimit += 100; loadPlayers(); };
 
 // ---------------- Chiffres
+const MODES = ["Carnage", "La Cantine", "Braquage", "Entraînement", "Méga-Carnage", "Jackpot"];
 async function loadStats() {
-  const { data } = await sb.rpc("admin_stats");
-  if (!data) return;
-  $("stats").innerHTML = [["Joueurs", data.players], ["Actifs aujourd'hui", data.active_today], ["Amitiés", data.friendships], ["Signalements", data.reports]]
-    .map(([t, v]) => `<div class="stat"><b>${fmt(v)}</b>${t}</div>`).join("");
+  const { data: d, error } = await sb.rpc("admin_dashboard");
+  if (error || !d) { $("stats").innerHTML = `<p class="err">${esc(error ? error.message : "")}</p>`; return; }
+  const pct = v => v == null ? "—" : v + " %";
+  const tiles = [
+    ["Joueurs", fmt(d.players), `+${fmt(d.new_today)} aujourd'hui · +${fmt(d.new_7d)} en 7 j`],
+    ["Actifs aujourd'hui", fmt(d.dau), `${fmt(d.wau)} cette semaine · ${fmt(d.mau)} ce mois`],
+    ["Parties aujourd'hui", fmt(d.matches_today), `${fmt(d.matches_7d)} en 7 j · ${fmt(d.matches_total)} au total`],
+    ["Parties par joueur", d.wau ? (d.matches_7d / d.wau).toFixed(1) : "—", "par joueur actif, sur 7 jours"],
+    ["Reviennent le lendemain", pct(d.d1), "nouveaux joueurs (J+1)"],
+    ["Reviennent après 7 jours", pct(d.d7), "nouveaux joueurs (J+7)"],
+    ["Durée d'une partie", d.avg_minutes_7d + " min", "en moyenne, 7 derniers jours"],
+    ["Codes utilisés", fmt(d.codes_used), `${fmt(d.friendships)} amitiés`],
+    ["À traiter", fmt(d.reports + d.messages), `${d.reports} signalement(s) · ${d.messages} message(s)`],
+  ];
+  $("stats").innerHTML = tiles.map(([t, v, sub]) => `<div class="stat"><b>${v}</b>${t}<small>${sub}</small></div>`).join("");
+  const series = d.series || [];
+  const max = Math.max(1, ...series.map(x => Math.max(x.active, x.new, x.matches)));
+  $("chart").innerHTML = series.map(x => {
+    const day = new Date(x.day + "T12:00:00");
+    const h = v => Math.round(v / max * 100);
+    return `<div class="day" title="${day.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} : ${x.active} actifs, ${x.new} nouveaux, ${x.matches} parties">
+      <div class="bars"><i style="height:${h(x.active)}%;background:var(--blue)"></i><i style="height:${h(x.new)}%;background:var(--green)"></i><i style="height:${h(x.matches)}%;background:var(--accent)"></i></div>
+      <span>${day.getDate()}/${day.getMonth() + 1}</span></div>`;
+  }).join("");
+  const bars = (rows, label) => {
+    if (!rows.length) return '<p class="empty">Pas encore de partie.</p>';
+    const top = Math.max(...rows.map(r => r.matches));
+    return rows.map(r => `<div class="hbar"><span>${esc(label(r))}</span><div class="track"><i style="width:${Math.round(r.matches / top * 100)}%"></i></div><span class="hint" style="white-space:nowrap">${fmt(r.matches)} parties · ${r.winrate} % 🏆</span></div>`).join("");
+  };
+  $("modes").innerHTML = bars(d.modes, r => MODES[r.mode] || "?");
+  $("heroes").innerHTML = bars(d.heroes, r => HEROES[r.hero] || "?");
+}
+$("refreshStats").onclick = () => refresh();
+
+// ---------------- Messages des joueurs
+async function loadMessages() {
+  const { data, error } = await sb.rpc("admin_list_messages");
+  if (error) { $("messages").innerHTML = `<p class="err">${esc(error.message)}</p>`; return; }
+  const unread = data.filter(m => !m.handled).length;
+  $("msgCount").textContent = unread ? `(${unread} non lu${unread > 1 ? "s" : ""})` : "";
+  if (!data.length) { $("messages").innerHTML = '<p class="empty">Aucun message pour l\'instant.</p>'; return; }
+  $("messages").innerHTML = data.map((m, i) => `<div class="code msg ${m.handled ? "off" : "unread"}">
+      <div><div class="pname" style="font-weight:800">${esc(m.name)} <span class="hint">· ${new Date(m.created_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })} · v${esc(m.app_version)}</span></div>
+      <div style="white-space:pre-wrap;margin-top:4px">${esc(m.message)}</div></div>
+      <div class="acts"><button class="small" data-i="${i}">${m.handled ? "Marquer non lu" : "Marquer lu"}</button></div>
+    </div>`).join("");
+  $("messages").querySelectorAll("button").forEach(b => b.onclick = async () => {
+    const m = data[+b.dataset.i];
+    await sb.rpc("admin_mark_message", { p_id: m.id, p_handled: !m.handled });
+    loadMessages(); loadStats();
+  });
 }
 
 // ---------------- Codes
