@@ -107,6 +107,16 @@
     </section>
 
     <section class="card">
+      <h2>Classement <button id="refreshRank" class="small" style="float:right">Actualiser</button></h2>
+      <div class="codeline" style="gap:8px;flex-wrap:wrap">
+        <button id="rankLive" class="small green">En direct</button>
+        <button id="rankCampaign" class="small">🏁 Campagne de lancement (figée ven. 4 déc. 23h59)</button>
+      </div>
+      <p class="hint" id="rankInfo" style="margin-top:8px"></p>
+      <div id="ranking"></div>
+    </section>
+
+    <section class="card">
       <h2>Messages des joueurs <span class="hint" id="msgCount"></span></h2>
       <div id="messages"></div>
     </section>
@@ -206,7 +216,37 @@ async function start() {
   refresh();
 }
 
-async function refresh() { loadStats(); loadCodes(); loadReports(); loadPlayers(); loadMessages(); }
+async function refresh() { loadStats(); loadRanking(); loadCodes(); loadReports(); loadPlayers(); loadMessages(); }
+
+// ---------------- Classement (en direct, ou figé à la fin de la campagne de lancement)
+const CAMPAIGN_END = new Date("2026-12-04T22:59:00Z");   // vendredi 4 décembre 2026, 23h59 à Paris
+let rankMode = "live";
+function left(ms) {
+  const m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mn = m % 60;
+  return (d ? d + " j " : "") + (d || h ? h + " h " : "") + mn + " min";
+}
+async function loadRanking() {
+  const campaign = rankMode === "campaign";
+  $("rankLive").className = "small" + (campaign ? "" : " green");
+  $("rankCampaign").className = "small" + (campaign ? " green" : "");
+  const now = new Date();
+  const frozen = campaign && now >= CAMPAIGN_END;
+  if (campaign && !frozen) $("rankInfo").innerHTML = `⏳ La campagne se fige automatiquement dans <b>${left(CAMPAIGN_END - now)}</b> (vendredi 4 décembre à 23h59). En attendant, voici le classement à cet instant.`;
+  else if (frozen) $("rankInfo").innerHTML = `🔒 Classement <b>figé le vendredi 4 décembre 2026 à 23h59</b> : les parties jouées après ne comptent pas.`;
+  else $("rankInfo").textContent = "Classement à l'instant, par trophées.";
+  const { data, error } = await sb.rpc("admin_leaderboard", { p_at: frozen ? CAMPAIGN_END.toISOString() : null });
+  if (error) { $("ranking").innerHTML = `<p class="err">${/admin_leaderboard/.test(error.message) ? "Le classement n'est pas encore installé sur le serveur." : esc(error.message)}</p>`; return; }
+  if (!data.length) { $("ranking").innerHTML = `<p class="empty">Pas encore de joueur.</p>`; return; }
+  const medal = r => r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : "#" + r;
+  $("ranking").innerHTML = data.map(p => `<div class="player">
+      <div><div class="pname">${medal(p.rank)} &nbsp;${esc(p.name)}</div>
+      <div class="hint">🏆 <b>${fmt(p.trophies)}</b> trophées · niveau ${p.level} · ${fmt(p.games)} partie${p.games > 1 ? "s" : ""} · ${fmt(p.wins)} victoire${p.wins > 1 ? "s" : ""}</div>
+      <div class="hint">Vu ${ago(p.last_seen)}</div></div>
+    </div>`).join("");
+}
+$("rankLive").onclick = () => { rankMode = "live"; loadRanking(); };
+$("rankCampaign").onclick = () => { rankMode = "campaign"; loadRanking(); };
+$("refreshRank").onclick = loadRanking;
 
 // ---------------- Joueurs
 const HEROES = ["Rook", "Nova", "Zip", "Brasa", "Mekka", "Lune", "Pixel", "Bolt", "Cobalt", "Zombie", "Shin", "Zed"];
