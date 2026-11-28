@@ -38,6 +38,10 @@
   .code { background: var(--card2); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
   .code .name { font-family: ui-monospace, Menlo, monospace; font-size: 1.15rem; font-weight: 800; color: var(--accent); }
   .code.off { opacity: .55; }
+  .code .uses { margin-top: 6px; }
+  .code .uses summary { cursor: pointer; color: var(--accent); font-weight: 700; }
+  .code .uses ul { margin: 6px 0 0; padding-left: 18px; columns: 2 220px; }
+  .code .uses li { margin: 2px 0; break-inside: avoid; }
   .code .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   @media (max-width: 640px) { .code { grid-template-columns: 1fr; } .code .acts { justify-content: flex-start; } }
   .bar { height: 8px; background: #15122b; border-radius: 4px; overflow: hidden; margin-top: 6px; }
@@ -376,10 +380,13 @@ function giftText(c) {
 
 let codes = [];
 async function loadCodes() {
-  const { data, error } = await sb.rpc("admin_list_codes");
+  const [{ data, error }, uses] = await Promise.all([sb.rpc("admin_list_codes"), sb.rpc("admin_code_uses")]);
   if (error) { $("codes").innerHTML = `<p class="err">${esc(error.message)}</p>`; return; }
   codes = data || [];
-  if (!codes.length) { $("codes").innerHTML = '<p class="empty">Aucun code pour l\'instant. Crée le premier au-dessus !</p>'; return; }
+  const byCode = {};
+  (uses.data || []).forEach(u => (byCode[u.code] = byCode[u.code] || []).push(u));
+  const deleted = Object.keys(byCode).filter(k => !codes.some(c => c.code === k));
+  if (!codes.length && !deleted.length) { $("codes").innerHTML = '<p class="empty">Aucun code pour l\'instant. Crée le premier au-dessus !</p>'; return; }
   const now = new Date();
   $("codes").innerHTML = codes.map((c, i) => {
     const expired = c.expires_at && new Date(c.expires_at) < now;
@@ -395,6 +402,7 @@ async function loadCodes() {
           ${c.note ? " · " + esc(c.note) : ""}</div>
         ${c.message ? `<div class="hint">« ${esc(c.message)} »</div>` : ""}
         ${c.max_uses ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}
+        ${usersList(byCode[c.code])}
       </div>
       <div class="acts">
         <button class="small green" data-a="copy" data-i="${i}">Copier</button>
@@ -403,8 +411,19 @@ async function loadCodes() {
         <button class="small red" data-a="delete" data-i="${i}">Supprimer</button>
       </div>
     </div>`;
-  }).join("");
+  }).join("") + (deleted.length ? `<h3 style="margin:18px 0 8px">Codes supprimés</h3>` + deleted.map(k => `<div class="code off"><div>
+        <div class="name">${esc(k)} <span class="pill" style="font-family:inherit">supprimé</span></div>
+        <div class="hint">Utilisé par <b style="color:var(--text)">${byCode[k].length}</b> joueur${byCode[k].length > 1 ? "s" : ""}</div>
+        ${usersList(byCode[k])}</div></div>`).join("") : "");
   $("codes").querySelectorAll("button").forEach(b => b.onclick = () => codeAction(b.dataset.a, codes[+b.dataset.i], b));
+}
+
+// Qui a utilisé le code : pseudo + date, le plus récent en premier
+function usersList(list) {
+  if (!list || !list.length) return "";
+  const items = list.map(u => `<li><b>${esc(u.name || "?")}</b>${u.account_deleted ? ' <span class="hint">(compte supprimé)</span>' : ` <span class="hint">· ${fmt(u.trophies)} 🏆</span>`}
+    <span class="hint">· ${new Date(u.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span></li>`).join("");
+  return `<details class="uses"><summary>Voir les ${list.length} compte${list.length > 1 ? "s" : ""}</summary><ul>${items}</ul></details>`;
 }
 
 async function codeAction(action, c, btn) {
