@@ -42,6 +42,9 @@
   .code .uses summary { cursor: pointer; color: var(--accent); font-weight: 700; }
   .code .uses ul { margin: 6px 0 0; padding-left: 18px; columns: 2 220px; }
   .code .uses li { margin: 2px 0; break-inside: avoid; }
+  .manage { grid-column: 1 / -1; background: #15122b; border-radius: 10px; padding: 12px; margin-top: 6px; }
+  .manage .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .hist { padding-left: 18px; margin: 4px 0 0; } .hist li { margin: 4px 0; }
   .code .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   @media (max-width: 640px) { .code { grid-template-columns: 1fr; } .code .acts { justify-content: flex-start; } }
   .bar { height: 8px; background: #15122b; border-radius: 4px; overflow: hidden; margin-top: 6px; }
@@ -170,6 +173,11 @@
     <section class="card">
       <h2>Joueurs <span class="hint" id="playersCount"></span></h2>
       <div class="codeline"><input id="playerSearch" style="text-transform:none;font-family:inherit;letter-spacing:0" placeholder="Chercher un pseudo… (vide = les derniers connectés)"><button id="playerGo" class="green">Chercher</button></div>
+      <details class="uses" style="margin-top:10px"><summary>📣 Envoyer un message à tous les joueurs</summary>
+        <input id="allTitle" maxlength="60" placeholder="Titre (ex : Bravo la classe !)" style="margin-top:8px">
+        <textarea id="allBody" maxlength="400" placeholder="Ton message, affiché dans le jeu au prochain retour au menu"></textarea>
+        <button id="allSend" class="small green" style="margin-top:6px">Envoyer à tout le monde</button> <span class="msg" id="allMsg"></span>
+      </details>
       <div id="players" style="margin-top:12px"></div>
       <button id="playersMore" class="small" style="margin-top:4px" hidden>Afficher plus</button>
     </section>
@@ -274,15 +282,78 @@ async function loadPlayers() {
       <div><div class="pname">${esc(p.name)}</div>
       <div class="hint">Niveau ${p.level} · 🏆 ${fmt(p.trophies)} · ${HEROES[p.hero] || "?"} · ${p.friends} ami${p.friends > 1 ? "s" : ""}${p.reports ? ` · <b style="color:var(--red)">${p.reports} signalement${p.reports > 1 ? "s" : ""}</b>` : ""}</div>
       <div class="hint">Vu ${ago(p.last_seen)} · inscrit le ${new Date(p.created_at).toLocaleDateString("fr-FR")}</div></div>
-      <div class="acts"><button class="small red" data-i="${i}">Changer le pseudo</button></div>
+      <div class="acts"><button class="small green" data-m="${i}">Gérer</button><button class="small red" data-i="${i}">Changer le pseudo</button></div>
+      <div class="manage" id="manage${i}" hidden></div>
     </div>`).join("");
-  $("players").querySelectorAll("button").forEach(b => b.onclick = async () => {
+  $("players").querySelectorAll("button[data-m]").forEach(b => b.onclick = () => openManage(data[+b.dataset.m], $("manage" + b.dataset.m)));
+  $("players").querySelectorAll("button[data-i]").forEach(b => b.onclick = async () => {
     const p = data[+b.dataset.i];
     if (!confirm(`Remplacer le pseudo « ${p.name} » par JoueurXXXX ? Le joueur pourra en choisir un autre.`)) return;
     await sb.rpc("admin_reset_name", { p_target: p.id });
     loadPlayers(); loadReports();
   });
 }
+// ---------------- Gérer un joueur : ressources + messages (le jeu les reçoit au prochain retour au menu)
+async function openManage(pl, box) {
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = '<p class="hint">Chargement…</p>';
+  const [{ data: found, error }, { data: hist }] = await Promise.all([
+    sb.rpc("admin_find_players", { p_q: pl.name }), sb.rpc("admin_player_inbox", { p_user: pl.id })]);
+  if (error) { box.innerHTML = `<p class="err">${esc(error.message)}</p>`; return; }
+  const r = (found || []).find(x => x.id === pl.id) || {};
+  const val = v => v == null ? "" : v;
+  const histHtml = (hist || []).map(h => `<li>${h.done_at ? "✅" : "⏳"} ${h.kind === "set"
+      ? "Correction : " + [h.coins != null ? "🪙 " + fmt(h.coins) : "", h.gems != null ? "💎 " + fmt(h.gems) : "", h.energy != null ? "⚡ " + fmt(h.energy) : ""].filter(Boolean).join(" · ")
+      : "Message"}${h.body ? " — « " + esc(h.title ? h.title + " : " : "") + esc(h.body) + " »" : ""}
+      <span class="hint">· ${new Date(h.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}${h.done_at ? " · reçu le " + new Date(h.done_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : " · en attente"}</span>
+      ${h.done_at ? "" : `<button class="small" data-c="${h.id}">Annuler</button>`}</li>`).join("");
+  box.innerHTML = `
+    <p class="hint">Ressources actuelles (dernière sauvegarde${r.saved_at ? " du " + new Date(r.saved_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : " : aucune"}) :
+      <b style="color:var(--text)">🪙 ${r.coins == null ? "?" : fmt(r.coins)} · 💎 ${r.gems == null ? "?" : fmt(r.gems)} · ⚡ ${r.energy == null ? "?" : fmt(r.energy)}</b></p>
+    <div class="grid">
+      <div><span class="hint">🪙 Pièces</span><input data-f="coins" type="number" min="0" value="${val(r.coins)}"></div>
+      <div><span class="hint">💎 Gemmes</span><input data-f="gems" type="number" min="0" value="${val(r.gems)}"></div>
+      <div><span class="hint">⚡ Énergie</span><input data-f="energy" type="number" min="0" value="${val(r.energy)}"></div>
+    </div>
+    <input data-f="title" maxlength="60" placeholder="Titre du message (facultatif)" style="margin-top:8px">
+    <textarea data-f="body" maxlength="400" placeholder="Message affiché au joueur (facultatif pour une correction)"></textarea>
+    <div class="codeline" style="margin-top:6px;flex-wrap:wrap">
+      <button class="small green" data-a="set">Appliquer les ressources</button>
+      <button class="small" data-a="msg">Envoyer seulement le message</button>
+    </div>
+    <div class="msg" data-f="out"></div>
+    <p class="hint">Le joueur reçoit tout la prochaine fois qu'il revient au menu du jeu (version 1.2.1 ou plus récente).</p>
+    ${histHtml ? `<h3 class="sub">Déjà envoyé</h3><ul class="hist">${histHtml}</ul>` : ""}`;
+  const f = k => box.querySelector(`[data-f=${k}]`);
+  const num = (k, cur) => { const v = f(k).value.trim(); if (v === "") return null; const n = Math.max(0, parseInt(v, 10) || 0); return n === cur ? null : n; };
+  box.querySelector("[data-a=set]").onclick = async () => {
+    const c = num("coins", r.coins), g = num("gems", r.gems), e = num("energy", r.energy);
+    if (c == null && g == null && e == null) { f("out").innerHTML = '<span class="err">Change au moins une valeur.</span>'; return; }
+    const what = [c != null ? `🪙 ${fmt(c)}` : "", g != null ? `💎 ${fmt(g)}` : "", e != null ? `⚡ ${fmt(e)}` : ""].filter(Boolean).join(", ");
+    if (!confirm(`Mettre ${pl.name} à : ${what} ?`)) return;
+    const { data: st, error } = await sb.rpc("admin_set_resources", { p_user: pl.id, p_coins: c, p_gems: g, p_energy: e, p_title: f("title").value, p_body: f("body").value });
+    f("out").innerHTML = error || st !== "ok" ? `<span class="err">${esc(error ? error.message : st)}</span>` : '<span class="ok">Envoyé ! ⏳ En attente que le joueur ouvre le jeu.</span>';
+    if (!error && st === "ok") { box.hidden = true; openManage(pl, box); }
+  };
+  box.querySelector("[data-a=msg]").onclick = async () => {
+    if (!f("body").value.trim()) { f("out").innerHTML = '<span class="err">Écris un message.</span>'; return; }
+    const { error } = await sb.rpc("admin_send_message", { p_user: pl.id, p_title: f("title").value, p_body: f("body").value });
+    f("out").innerHTML = error ? `<span class="err">${esc(error.message)}</span>` : '<span class="ok">Message envoyé !</span>';
+    if (!error) { box.hidden = true; openManage(pl, box); }
+  };
+  box.querySelectorAll("button[data-c]").forEach(b => b.onclick = async () => {
+    await sb.rpc("admin_cancel_inbox", { p_id: +b.dataset.c }); box.hidden = true; openManage(pl, box);
+  });
+}
+$("allSend").onclick = async () => {
+  const body = $("allBody").value.trim();
+  if (!body) { $("allMsg").innerHTML = '<span class="err">Écris un message.</span>'; return; }
+  if (!confirm("Envoyer ce message à TOUS les joueurs ?")) return;
+  const { data: n, error } = await sb.rpc("admin_send_message", { p_user: null, p_title: $("allTitle").value, p_body: body });
+  $("allMsg").innerHTML = error ? `<span class="err">${esc(error.message)}</span>` : `<span class="ok">Envoyé à ${fmt(n)} joueurs !</span>`;
+  if (!error) { $("allTitle").value = ""; $("allBody").value = ""; }
+};
 $("playerGo").onclick = () => { playerLimit = 50; loadPlayers(); };
 $("playerSearch").addEventListener("keydown", e => { if (e.key === "Enter") $("playerGo").click(); });
 $("playersMore").onclick = () => { playerLimit += 100; loadPlayers(); };
